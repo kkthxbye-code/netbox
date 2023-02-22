@@ -824,6 +824,27 @@ class Device(PrimaryModel, ConfigContextModel):
             for component in components:
                 component.save()
 
+    def _update_interface_relationships(self, interface_templates, module=None):
+        for interface_template in interface_templates.exclude(parent=None, bridge=None, lag=None):
+            interface = Interface.objects.get(device=self, name=interface_template.resolve_name(module=module))
+            modified = False
+
+            if interface_template.parent:
+                interface.parent = Interface.objects.get(device=self, name=interface_template.parent.resolve_name(module=module))
+                modified = True
+
+            if interface_template.bridge:
+                interface.bridge = Interface.objects.get(device=self, name=interface_template.bridge.resolve_name(module=module))
+                modified = True
+
+            if interface_template.lag:
+                interface.lag = Interface.objects.get(device=self, name=interface_template.lag.resolve_name(module=module))
+                modified = True
+
+            if modified:
+                interface.full_clean()
+                interface.save()
+
     def save(self, *args, **kwargs):
         is_new = not bool(self.pk)
 
@@ -850,6 +871,9 @@ class Device(PrimaryModel, ConfigContextModel):
             self._instantiate_components(self.device_type.devicebaytemplates.all())
             # Disable bulk_create to accommodate MPTT
             self._instantiate_components(self.device_type.inventoryitemtemplates.all(), bulk_create=False)
+
+            # Updating related fields (parent, bridge and lag) must be done after instantiation
+            self._update_interface_relationships(self.device_type.interfacetemplates.all())
 
         # Update Site and Rack assignment for any child Devices
         devices = Device.objects.filter(parent_bay__device=self)
@@ -1011,6 +1035,27 @@ class Module(PrimaryModel, ConfigContextModel):
                 f"Module must be installed within a module bay belonging to the assigned device ({self.device})."
             )
 
+    def _update_interface_relationships(self, interface_templates, module=None):
+        for interface_template in interface_templates.exclude(parent=None, bridge=None, lag=None):
+            interface = Interface.objects.get(device=self.device, name=interface_template.resolve_name(module=module))
+            modified = False
+
+            if interface_template.parent:
+                interface.parent = Interface.objects.get(device=self.device, name=interface_template.parent.resolve_name(module=module))
+                modified = True
+
+            if interface_template.bridge:
+                interface.bridge = Interface.objects.get(device=self.device, name=interface_template.bridge.resolve_name(module=module))
+                modified = True
+
+            if interface_template.lag:
+                interface.lag = Interface.objects.get(device=self.device, name=interface_template.lag.resolve_name(module=module))
+                modified = True
+
+            if modified:
+                interface.full_clean()
+                interface.save()
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
 
@@ -1086,6 +1131,7 @@ class Module(PrimaryModel, ConfigContextModel):
                     update_fields=update_fields
                 )
 
+        self._update_interface_relationships(self.module_type.interfacetemplates, self)
 
 #
 # Virtual chassis

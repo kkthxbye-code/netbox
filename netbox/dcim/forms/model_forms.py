@@ -1052,15 +1052,43 @@ class PowerOutletTemplateForm(ModularComponentTemplateForm):
 
 
 class InterfaceTemplateForm(ModularComponentTemplateForm):
+    parent = DynamicModelChoiceField(
+        queryset=InterfaceTemplate.objects.all(),
+        required=False,
+        query_params={
+            'devicetype_id': '$device_type',
+            'moduletype_id': '$module_type',
+        }
+    )
+    bridge = DynamicModelChoiceField(
+        queryset=InterfaceTemplate.objects.all(),
+        required=False,
+        query_params={
+            'devicetype_id': '$device_type',
+            'moduletype_id': '$module_type',
+        }
+    )
+    lag = DynamicModelChoiceField(
+        queryset=InterfaceTemplate.objects.all(),
+        required=False,
+        query_params={
+            'devicetype_id': '$device_type',
+            'moduletype_id': '$module_type',
+            'type': 'lag',
+        }
+    )
+
     fieldsets = (
         (None, ('device_type', 'module_type', 'name', 'label', 'type', 'enabled', 'mgmt_only', 'description')),
-        ('PoE', ('poe_mode', 'poe_type'))
+        ('PoE', ('poe_mode', 'poe_type')),
+        ('Related Interfaces', ('parent', 'bridge', 'lag')),
     )
 
     class Meta:
         model = InterfaceTemplate
         fields = [
-            'device_type', 'module_type', 'name', 'label', 'type', 'mgmt_only', 'enabled', 'description', 'poe_mode', 'poe_type',
+            'device_type', 'module_type', 'name', 'label', 'type', 'mgmt_only', 'enabled', 
+            'description', 'poe_mode', 'parent', 'bridge', 'lag', 'poe_type',
         ]
 
 

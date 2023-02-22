@@ -362,8 +362,61 @@ class InterfaceTemplate(ModularComponentTemplateModel):
         blank=True,
         verbose_name='PoE type'
     )
+    parent = models.ForeignKey(
+        to='self',
+        on_delete=models.SET_NULL,
+        related_name='child_interfaces',
+        null=True,
+        blank=True,
+        verbose_name='Parent interface'
+    )
+    bridge = models.ForeignKey(
+        to='self',
+        on_delete=models.SET_NULL,
+        related_name='bridge_interfaces',
+        null=True,
+        blank=True,
+        verbose_name='Bridge interface'
+    )
+    lag = models.ForeignKey(
+        to='self',
+        on_delete=models.SET_NULL,
+        related_name='member_interfaces',
+        null=True,
+        blank=True,
+        verbose_name='Parent LAG'
+    )
 
     component_model = Interface
+
+    def clean(self):
+        super().clean()
+
+        # Validate self-referential fields
+        if self.parent and self.parent.device_type != self.device_type:
+            raise ValidationError(
+                f"Parent interface ({self.parent}) must belong to the same device type"
+            )
+        
+        if self.bridge and self.bridge.device_type != self.device_type:
+            raise ValidationError(
+                f"Bridge interface ({self.bridge}) must belong to the same device type"
+            )
+
+        if self.lag and self.lag.device_type != self.device_type:
+            raise ValidationError(
+                f"LAG interface ({self.lag}) must belong to the same device type"
+            )
+
+        # An interface cannot be its own parent
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({'parent': "An interface cannot be its own parent."})
+
+        # A physical interface cannot have a parent interface
+        if self.type != InterfaceTypeChoices.TYPE_VIRTUAL and self.parent is not None:
+            raise ValidationError({'parent': "Only virtual interfaces may be assigned to a parent interface."})
+
+
 
     def instantiate(self, **kwargs):
         return self.component_model(
@@ -387,6 +440,9 @@ class InterfaceTemplate(ModularComponentTemplateModel):
             'description': self.description,
             'poe_mode': self.poe_mode,
             'poe_type': self.poe_type,
+            'parent': self.parent.name if self.parent else None,
+            'bridge': self.bridge.name if self.bridge else None,
+            'lag': self.lag.name if self.lag else None,
         }
 
 
@@ -436,7 +492,6 @@ class FrontPortTemplate(ModularComponentTemplateModel):
         super().clean()
 
         try:
-
             # Validate rear port assignment
             if self.rear_port.device_type != self.device_type:
                 raise ValidationError(
@@ -450,7 +505,6 @@ class FrontPortTemplate(ModularComponentTemplateModel):
                         self.rear_port_position, self.rear_port.name, self.rear_port.positions
                     )
                 )
-
         except RearPortTemplate.DoesNotExist:
             pass
 
